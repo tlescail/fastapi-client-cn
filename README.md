@@ -16,5 +16,5 @@ app.add_middleware(ClientCnMiddleware)
 
 @app.get('/')
 async def test(request: Request):
-    return request.scope['client_cn']
+    return request.scope['commonName']
 ```
