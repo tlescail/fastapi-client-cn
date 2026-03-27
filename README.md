@@ -8,13 +8,13 @@ Injects the CommonName of the client's certificate inside the request's scope.
 
 ```python
 from fastapi import FastAPI, Request
-from fastapi_client_cn import ClientCnMiddleware
+from fastapi_client_cn import ClientCertificateMiddleware
 
 app = FastAPI()
 
-app.add_middleware(ClientCnMiddleware)
+app.add_middleware(ClientCertificateMiddleware)
 
 @app.get('/')
 async def test(request: Request):
-    return request.scope['commonName']
+    return request.scope['ClientCertificate']
 ```
