@@ -8,13 +8,16 @@ Provides dependables to access parts of said certificate.
 ```python
 from fastapi import FastAPI, Depends
 from typing import Annotated
-from client_certificate_middleware import ClientCertificateMiddleware, clientCertificateSubjectCN
+from client_certificate_middleware import ClientCertificateMiddleware
+from client_certificate_middleware.dependency import certCN
 
 app = FastAPI()
 
+# add the middleware
 app.add_middleware(ClientCertificateMiddleware)
 
+# use depedables
 @app.get('/cn')
-async def cn(cn: Annotated[str, Depends(clientCertificateSubjectCN)]):
+async def cn(cn: Annotated[str, Depends(certCN)]) -> str:
     return cn
 ```

@@ -1,32 +1,35 @@
-from fastapi import (
-    Depends as Depends,
-    Request as Request,
-)
-from typing import (
-    Annotated as Annotated,
-    Optional as Optional,
-)
-from ssl import SSLCertVerificationError as SSLCertVerificationError
+from fastapi import Depends, Request, HTTPException, status
+from typing import Annotated, Sequence
+from cryptography.x509.oid import ExtensionOID, NameOID
 
 from typing import TYPE_CHECKING
+
+from pydantic import BaseModel
 if TYPE_CHECKING:
-    from cryptography.x509 import (
-        Certificate as Certificate,
-        Name as Name,
-    )
+    from cryptography.x509 import Certificate
 
 
-def clientCertificate(request: Request) -> "Certificate":
-    certificate: Optional["Certificate"] = request.scope["ClientCertificate"]
-    if certificate is None:
-        raise SSLCertVerificationError()
+def cert(request: Request) -> "Certificate":
+    if (certificate := request.scope["ClientCertificate"]) is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Client did not provide a valid certificate")
     return certificate
 
-def clientCertificateSubject(certificate: Annotated["Certificate", Depends(clientCertificate)]) -> "Name":
-    return certificate.subject
+def certCN(cert: Annotated["Certificate", Depends(cert)]) -> str:
+    matches = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+    if len(matches) == 0:
+        raise HTTPException(status.HTTP_406_NOT_ACCEPTABLE, "Client Certificate Subject has no attribute CommonName")
+    if len(matches) != 1:
+        raise HTTPException(status.HTTP_406_NOT_ACCEPTABLE, "Client Certificate Subject has multiple attributes CommonName")
+    return str(matches[0].value)
 
-def clientCertificateSubjectCN(subject: Annotated["Name", Depends(clientCertificateSubject)]) -> str:
-    for attribute in subject: # pyright: ignore[reportUnknownVariableType]
-        if attribute.rfc4514_attribute_name == 'CN':
-            return attribute.value # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-    raise KeyError('CN undefined in Certificate Subject')
+def certSANs(cert: Annotated["Certificate", Depends(cert)]) -> Sequence[str]:
+    return [ str(attribute.value) for attribute in cert.subject.get_attributes_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME) ]
+
+class Names(BaseModel):
+    CN: str
+    SANs: Sequence[str]
+
+def clientCertSubjectNames(CN: Annotated[str, Depends(certCN)],
+                           SANs: Annotated[Sequence[str], Depends(certSANs)]) -> Names:
+    return Names(CN=CN, SANs=SANs)
+    
